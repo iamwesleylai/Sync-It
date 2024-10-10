@@ -12,7 +12,7 @@ class CameraManager: NSObject, ObservableObject {
     @Published var isRecording = false
     @Published var videoURL: URL?
     
-    private var captureSession: AVCaptureSession?
+    var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
     
     override init() {

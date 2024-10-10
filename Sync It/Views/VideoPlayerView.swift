@@ -19,9 +19,16 @@ struct VideoPlayerView: View {
                 Text("No video recorded")
             }
         }
+        .onAppear {
+            if let url = videoURL {
+                player = AVPlayer(url: url)
+                player?.play()
+            }
+        }
         .onChange(of: videoURL) { newURL in
             if let url = newURL {
                 player = AVPlayer(url: url)
+                player?.play()
             }
         }
     }

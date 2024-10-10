@@ -11,14 +11,28 @@ import AVFoundation
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
+    @State private var showVideoPlayer = false
     
     var body: some View {
-        VStack {
-            VideoPlayerView(videoURL: cameraManager.videoURL)
-                .frame(height: 300)
+        ZStack {
+            CameraPreviewView(session: cameraManager.captureSession)
+                .edgesIgnoringSafeArea(.all)
             
-            RecordButton(isRecording: cameraManager.isRecording) {
-                cameraManager.toggleRecording()
+            VStack {
+                Spacer()
+                
+                if showVideoPlayer {
+                    VideoPlayerView(videoURL: cameraManager.videoURL)
+                        .frame(height: 300)
+                }
+                
+                RecordButton(isRecording: cameraManager.isRecording) {
+                    cameraManager.toggleRecording()
+                    if !cameraManager.isRecording {
+                        showVideoPlayer = true
+                    }
+                }
+                .padding(.bottom, 20)
             }
         }
         .onAppear {
@@ -38,4 +52,23 @@ struct RecordButton: View {
             .foregroundColor(.white)
             .cornerRadius(10)
     }
+}
+
+struct CameraPreviewView: UIViewRepresentable {
+    let session: AVCaptureSession?
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: UIScreen.main.bounds)
+        
+        if let session = session {
+            let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+            previewLayer.frame = view.bounds
+            previewLayer.videoGravity = .resizeAspectFill
+            view.layer.addSublayer(previewLayer)
+        }
+        
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
