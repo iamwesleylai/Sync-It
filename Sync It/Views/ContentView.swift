@@ -33,7 +33,7 @@ struct ContentView: View {
                 .photosPicker(isPresented: $isImportingAudio, selection: $audioAsset, matching: .videos)
             }
             .navigationDestination(for: String.self) { _ in
-                CompletionView(isActive: $isImportComplete, path: $path)
+                CompletionView(isActive: $isImportComplete, path: $path, onDismiss: clearAssets)
             }
             .navigationTitle("Import Media")
             .onChange(of: videoAsset) { _ in
@@ -43,6 +43,9 @@ struct ContentView: View {
             .onChange(of: audioAsset) { _ in
                 print("DEBUG: Audio asset changed")
                 checkImportCompletion()
+            }
+            .onAppear {
+                print("DEBUG: ImportMediaView appeared")
             }
         }
     }
@@ -95,11 +98,19 @@ struct ContentView: View {
             }
         }
     }
+    
+    func clearAssets() {
+        print("DEBUG: Clearing assets")
+        videoAsset = nil
+        audioAsset = nil
+        isImportComplete = false
+    }
 }
 
 struct CompletionView: View {
     @Binding var isActive: Bool
     @Binding var path: NavigationPath
+    var onDismiss: () -> Void
     
     var body: some View {
         VStack {
@@ -110,6 +121,7 @@ struct CompletionView: View {
                 print("DEBUG: Go Back button tapped in CompletionView")
                 isActive = false
                 path.removeLast()
+                onDismiss()
             }
             .padding()
         }
