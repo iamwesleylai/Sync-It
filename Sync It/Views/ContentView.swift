@@ -16,7 +16,7 @@ struct ContentView: View {
         NavigationStack(path: $path) {
             ImportMediaView(assetManager: assetManager, path: $path)
                 .navigationDestination(for: String.self) { _ in
-                    CompletionView(assetManager: assetManager, path: $path)
+                    EditView(assetManager: assetManager, path: $path)
                 }
         }
     }
