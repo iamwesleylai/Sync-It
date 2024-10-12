@@ -40,7 +40,18 @@ struct ImportMediaView: View {
             Button("Click To Process") {
                 Debug.log("Process button tapped")
                 if assetManager.videoAsset != nil && assetManager.audioAsset != nil {
-                    path.append("completion")
+                    isProcessing = true
+                    Task {
+                        await assetManager.processSelectedItems()
+                        await MainActor.run {
+                            isProcessing = false
+                            if assetManager.isImportComplete {
+                                path.append("EditView")
+                            } else {
+                                showReminder = true
+                            }
+                        }
+                    }
                 } else {
                     showReminder = true
                 }
@@ -50,7 +61,7 @@ struct ImportMediaView: View {
             .foregroundColor(.white)
             .cornerRadius(10)
             .disabled(isProcessing)
-            
+
             if isProcessing {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .blue))
