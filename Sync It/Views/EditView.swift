@@ -17,13 +17,13 @@ struct EditView: View {
         VStack {
             if let player = player {
                 VideoPlayer(player: player)
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .onAppear {
-                        player.play()
-                    }
-                    .onDisappear {
-                        player.pause()
-                    }
+                .aspectRatio(16/9, contentMode: .fit)
+                .onAppear {
+                    player.play()
+                }
+                .onDisappear {
+                    player.pause()
+                }
             } else {
                 Text("Loading video...")
             }
@@ -42,19 +42,17 @@ struct EditView: View {
     }
     
     private func loadVideo() {
-        guard let videoAsset = assetManager.videoAsset else { return }
+        Debug.log("Starting to load video")
+        Debug.log("VideoAssetURL: \(assetManager.videoAssetURL?.absoluteString ?? "nil")")
         
-        videoAsset.loadTransferable(type: URL.self) { result in
-            switch result {
-            case .success(let url):
-                if let url = url {
-                    DispatchQueue.main.async {
-                        self.player = AVPlayer(url: url)
-                    }
-                }
-            case .failure(let error):
-                Debug.log("Failed to load video: \(error.localizedDescription)")
-            }
+        guard let videoURL = assetManager.videoAssetURL else {
+            Debug.log("Video asset URL is nil")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            self.player = AVPlayer(url: videoURL)
+            Debug.log("Player initialized with URL: \(videoURL)")
         }
     }
 }
