@@ -27,6 +27,7 @@
 		E18A1B5D2CB87F1500234428 /* Sync It.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sync It.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18A1B6D2CB87F1700234428 /* Sync ItTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Sync ItTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18A1B772CB87F1700234428 /* Sync ItUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Sync ItUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1D9E7A92CC218D100B0ABA6 /* VideoTimelineView.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VideoTimelineView.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +90,11 @@
 				E18A1B6D2CB87F1700234428 /* Sync ItTests.xctest */,
 				E18A1B772CB87F1700234428 /* Sync ItUITests.xctest */,
 			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E1D9E7AB2CC218D100B0ABA6 /* Products */ = {
+			isa = PBXGroup;
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -198,6 +204,12 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E18A1B5E2CB87F1500234428 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = E1D9E7AB2CC218D100B0ABA6 /* Products */;
+					ProjectRef = E1D9E7A92CC218D100B0ABA6 /* VideoTimelineView.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				E18A1B5C2CB87F1500234428 /* Sync It */,

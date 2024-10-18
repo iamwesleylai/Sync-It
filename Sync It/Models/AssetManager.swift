@@ -65,9 +65,9 @@ class AssetManager: ObservableObject {
             if let data = try await item.loadTransferable(type: Data.self) {
                 Debug.log("\(isVideo ? "Video" : "Audio") Data loaded successfully, size: \(data.count) bytes")
                 
-                // Create a temporary file URL
+                // Create a temporary file URL with the appropriate extension
                 let tempDirectoryURL = FileManager.default.temporaryDirectory
-                let fileName = "\(isVideo ? "video" : "audio")_\(UUID().uuidString)"
+                let fileName = "\(isVideo ? "video" : "audio")_\(UUID().uuidString).\(isVideo ? "mov" : "m4a")"
                 let fileURL = tempDirectoryURL.appendingPathComponent(fileName)
                 
                 // Write the data to the file
