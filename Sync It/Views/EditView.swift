@@ -7,25 +7,32 @@
 
 import SwiftUI
 import AVKit
+import AVFoundation
 
 struct EditView: View {
     @ObservedObject var assetManager: AssetManager
     @Binding var path: NavigationPath
-    @State private var player: AVPlayer?
+    @State private var videoPlayer: AVPlayer?
+    @State private var audioPlayer: AVAudioPlayer?
+    @State private var isLoading = true
     
     var body: some View {
         VStack {
-            if let player = player {
-                VideoPlayer(player: player)
-                .aspectRatio(16/9, contentMode: .fit)
-                .onAppear {
-                    player.play()
-                }
-                .onDisappear {
-                    player.pause()
-                }
+            if isLoading {
+                ProgressView("Loading media...")
+            } else if let videoPlayer = videoPlayer {
+                VideoPlayer(player: videoPlayer)
+                    .aspectRatio(16/9, contentMode: .fit)
+                    .onAppear {
+                        videoPlayer.play()
+                        audioPlayer?.play()
+                    }
+                    .onDisappear {
+                        videoPlayer.pause()
+                        audioPlayer?.pause()
+                    }
             } else {
-                Text("Loading video...")
+                Text("Failed to load media")
             }
             
             Button("Go Back") {
@@ -38,6 +45,7 @@ struct EditView: View {
         .onAppear {
             Debug.log("EditView appeared")
             loadVideo()
+            loadAudio()
         }
     }
     
@@ -51,8 +59,26 @@ struct EditView: View {
         }
         
         DispatchQueue.main.async {
-            self.player = AVPlayer(url: videoURL)
-            Debug.log("Player initialized with URL: \(videoURL)")
+            self.videoPlayer = AVPlayer(url: videoURL)
+            Debug.log("Video player initialized with URL: \(videoURL)")
+            self.isLoading = false
+        }
+    }
+    
+    private func loadAudio() {
+        Debug.log("Starting to load audio")
+        Debug.log("AudioAssetURL: \(assetManager.audioAssetURL?.absoluteString ?? "nil")")
+        
+        guard let audioURL = assetManager.audioAssetURL else {
+            Debug.log("Audio asset URL is nil")
+            return
+        }
+        
+        do {
+            self.audioPlayer = try AVAudioPlayer(contentsOf: audioURL)
+            Debug.log("Audio player initialized with URL: \(audioURL)")
+        } catch {
+            Debug.log("Error initializing audio player: \(error.localizedDescription)")
         }
     }
 }
