@@ -39,6 +39,14 @@ class AssetManager: ObservableObject {
         }
     }
     
+    func convertAudioAsset() async {
+        Debug.log("Starting audio asset conversion...")
+        await AudioConverter.convertVideoToAudio(assetManager: self)
+        await MainActor.run {
+            checkImportCompletion()
+        }
+    }
+    
     func processSelectedItems() async {
         await MainActor.run {
             Debug.log("Starting to process selected items...")
@@ -47,11 +55,13 @@ class AssetManager: ObservableObject {
         }
         await loadTransferable(from: videoAsset, isVideo: true)
         await loadTransferable(from: audioAsset, isVideo: false)
+        await convertAudioAsset()  // Add this line
         await MainActor.run {
-            Debug.log("Finished loading transferables, checking completion...")
+            Debug.log("Finished loading transferables and converting audio, checking completion...")
             checkImportCompletion()
         }
     }
+    
     
     private func loadTransferable(from item: PhotosPickerItem?, isVideo: Bool) async {
         Debug.log("Loading transferable for \(isVideo ? "video" : "audio")...")
@@ -99,4 +109,6 @@ class AssetManager: ObservableObject {
         isImportComplete = false
         Debug.log("All assets cleared")
     }
+    
+    
 }
