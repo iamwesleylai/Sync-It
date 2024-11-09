@@ -4,166 +4,172 @@
 //
 //  Created by Wesley Lai on 10/11/24.
 //
-
 import SwiftUI
 import AVKit
-import AVFoundation
 
 struct EditView: View {
     @ObservedObject var assetManager: AssetManager
+    @StateObject private var editManager = EditManager()
     @Binding var path: NavigationPath
-    @State private var composition: AVMutableComposition?
-    @State private var playerItem: AVPlayerItem?
-    @State private var player: AVPlayer?
-    @State private var isLoading = true
-    @State private var videoOffset: CMTime = .zero
-    @State private var audioOffset: CMTime = .zero
-
+    @State private var showSpecificMode = false
+    @State private var isPlaying = false
+    
     var body: some View {
         VStack {
-            if isLoading {
+            if editManager.isLoading {
                 ProgressView("Loading media...")
-            } else if let player = player {
-                VideoPlayer(player: player)
+            } else {
+                // Video Player
+                VideoPlayer(player: editManager.player)
                     .aspectRatio(16/9, contentMode: .fit)
-                    .onAppear { player.play() }
-                    .onDisappear { player.pause() }
-
-                Text("Video Offset: \(CMTimeGetSeconds(videoOffset), specifier: "%.3f")s")
-                Text("Audio Offset: \(CMTimeGetSeconds(audioOffset), specifier: "%.3f")s")
-
-                HStack {
-                    Button("Add Video Frame") { addVideoFrame() }
-                    Button("Remove Video Frame") { removeVideoFrame() }
+                    .onAppear { editManager.player?.play() }
+                    .onDisappear { editManager.player?.pause() }
+                
+                // Timeline Visualization
+                TimelineVisualization(
+                    currentTime: editManager.currentTime,
+                    totalDuration: editManager.totalDuration,
+                    videoOffset: editManager.videoOffset,
+                    audioOffset: editManager.audioOffset
+                )
+                .frame(height: 100)
+                .padding()
+                
+                // Volume Controls
+                VolumeControlsView(
+                    videoVolume: Binding(
+                        get: { Double(editManager.videoVolume) },
+                        set: { editManager.updateVolume(value: Float($0), isVideo: true) }
+                    ),
+                    audioVolume: Binding(
+                        get: { Double(editManager.audioVolume) },
+                        set: { editManager.updateVolume(value: Float($0), isVideo: false) }
+                    )
+                )
+                .padding()
+                
+                // Specific Mode Toggle
+                DisclosureGroup("Specific Mode", isExpanded: $showSpecificMode) {
+                    DelayControlsView(editManager: editManager)
+                        .padding()
                 }
-                HStack {
-                    Button("Add Audio Sample") { addAudioSample() }
-                    Button("Remove Audio Sample") { removeAudioSample() }
-                }
-
-                Button("Apply Changes") { applyChanges() }
+                .padding()
                 
                 Button("Go Back") {
                     Debug.log("Go Back button tapped in EditView")
                     assetManager.clearAssets()
                     path.removeLast()
                 }
-            } else {
-                Text("Failed to load media")
+                .padding()
             }
         }
         .onAppear {
             Debug.log("EditView appeared")
-            loadComposition()
-        }
-    }
-
-    private func loadComposition() {
-        Debug.log("Starting to load composition")
-        guard let videoURL = assetManager.videoAssetURL,
-              let audioURL = assetManager.audioAssetURL else {
-            Debug.log("Video or audio asset URL is nil")
-            isLoading = false
-            return
-        }
-
-        let composition = AVMutableComposition()
-        
-        guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
-              let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-            Debug.log("Failed to create composition tracks")
-            isLoading = false
-            return
-        }
-
-        do {
-            let videoAsset = AVAsset(url: videoURL)
-            let audioAsset = AVAsset(url: audioURL)
-            
-            // Use async/await to load duration and tracks
             Task {
-                let videoDuration = try await videoAsset.load(.duration)
-                let audioDuration = try await audioAsset.load(.duration)
-                
-                let videoAssetTrack = try await videoAsset.loadTracks(withMediaType: .video).first
-                let audioAssetTrack = try await audioAsset.loadTracks(withMediaType: .audio).first
-                
-                guard let videoAssetTrack = videoAssetTrack, let audioAssetTrack = audioAssetTrack else {
-                    Debug.log("Failed to load asset tracks")
-                    isLoading = false
+                guard let videoURL = assetManager.videoAssetURL,
+                      let audioURL = assetManager.audioAssetURL else {
                     return
                 }
-                
-                try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration),
-                                               of: videoAssetTrack,
-                                               at: .zero)
-                
-                try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: audioDuration),
-                                               of: audioAssetTrack,
-                                               at: .zero)
-                
-                await MainActor.run {
-                    self.composition = composition
-                    self.playerItem = AVPlayerItem(asset: composition)
-                    self.player = AVPlayer(playerItem: playerItem)
-                    
-                    Debug.log("Composition loaded successfully")
-                    isLoading = false
-                }
+                await editManager.initialize(videoURL: videoURL, audioURL: audioURL)
             }
-        } catch {
-            Debug.log("Error creating composition: \(error.localizedDescription)")
-            isLoading = false
         }
     }
+}
 
-    private func addVideoFrame() {
-        guard let composition = composition,
-              let videoTrack = composition.tracks(withMediaType: .video).first else { return }
-        
-        let frameDuration = CMTime(value: 1, timescale: 30) // Assuming 30 fps
-        videoTrack.insertEmptyTimeRange(CMTimeRange(start: .zero, duration: frameDuration))
-        videoOffset = CMTimeAdd(videoOffset, frameDuration)
-        updatePlayerItem()
+struct TimelineVisualization: View {
+    let currentTime: Double
+    let totalDuration: Double
+    let videoOffset: Double
+    let audioOffset: Double
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Video Timeline
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.purple.opacity(0.5))
+                    .frame(
+                        width: geometry.size.width * CGFloat(totalDuration / max(totalDuration, 1)),
+                        height: 30
+                    )
+                    .offset(x: geometry.size.width * CGFloat(videoOffset / max(totalDuration, 1)))
+                
+                // Audio Timeline
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.green.opacity(0.5))
+                    .frame(
+                        width: geometry.size.width * CGFloat(totalDuration / max(totalDuration, 1)),
+                        height: 30
+                    )
+                    .offset(x: geometry.size.width * CGFloat(audioOffset / max(totalDuration, 1)))
+                
+                // Playhead
+                Rectangle()
+                    .fill(Color.red)
+                    .frame(width: 2, height: 30)
+                    .offset(x: geometry.size.width * CGFloat(currentTime / max(totalDuration, 1)))
+            }
+        }
     }
+}
 
-    private func removeVideoFrame() {
-        guard let composition = composition,
-              let videoTrack = composition.tracks(withMediaType: .video).first else { return }
-        
-        let frameDuration = CMTime(value: 1, timescale: 30) // Assuming 30 fps
-        videoTrack.removeTimeRange(CMTimeRange(start: .zero, duration: frameDuration))
-        videoOffset = CMTimeSubtract(videoOffset, frameDuration)
-        updatePlayerItem()
+struct VolumeControlsView: View {
+    @Binding var videoVolume: Double
+    @Binding var audioVolume: Double
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            HStack {
+                Text("Video Volume")
+                Slider(value: $videoVolume, in: 0...1)
+                Text("\(Int(videoVolume * 100))%")
+            }
+            
+            HStack {
+                Text("Audio Volume")
+                Slider(value: $audioVolume, in: 0...1)
+                Text("\(Int(audioVolume * 100))%")
+            }
+        }
     }
+}
 
-    private func addAudioSample() {
-        guard let composition = composition,
-              let audioTrack = composition.tracks(withMediaType: .audio).first else { return }
-        
-        let sampleDuration = CMTime(value: 1, timescale: 44100) // Assuming 44.1 kHz sample rate
-        audioTrack.insertEmptyTimeRange(CMTimeRange(start: .zero, duration: sampleDuration))
-        audioOffset = CMTimeAdd(audioOffset, sampleDuration)
-        updatePlayerItem()
+struct DelayControlsView: View {
+    @ObservedObject var editManager: EditManager
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            DelayButtonGroup(title: "Video Delay", mediaType: "video", editManager: editManager)
+            DelayButtonGroup(title: "Audio Delay", mediaType: "audio", editManager: editManager)
+        }
     }
+}
 
-    private func removeAudioSample() {
-        guard let composition = composition,
-              let audioTrack = composition.tracks(withMediaType: .audio).first else { return }
-        
-        let sampleDuration = CMTime(value: 1, timescale: 44100) // Assuming 44.1 kHz sample rate
-        audioTrack.removeTimeRange(CMTimeRange(start: .zero, duration: sampleDuration))
-        audioOffset = CMTimeSubtract(audioOffset, sampleDuration)
-        updatePlayerItem()
-    }
-
-    private func updatePlayerItem() {
-        playerItem = AVPlayerItem(asset: composition!)
-        player?.replaceCurrentItem(with: playerItem)
-    }
-
-    private func applyChanges() {
-        // Here you would typically save the composition or export it
-        Debug.log("Changes applied. Video offset: \(CMTimeGetSeconds(videoOffset))s, Audio offset: \(CMTimeGetSeconds(audioOffset))s")
+struct DelayButtonGroup: View {
+    let title: String
+    let mediaType: String
+    @ObservedObject var editManager: EditManager
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(title)
+                .font(.headline)
+            
+            HStack {
+                ForEach(["1ms", "10ms", "100ms", "1s"], id: \.self) { delay in
+                    HStack {
+                        Button("-\(delay)") {
+                            editManager.adjustDelay(type: delay, increment: false, mediaType: mediaType)
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        Button("+\(delay)") {
+                            editManager.adjustDelay(type: delay, increment: true, mediaType: mediaType)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+        }
     }
 }
