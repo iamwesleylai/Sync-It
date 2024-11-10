@@ -15,95 +15,89 @@ struct EditView: View {
     @State private var isPlaying = false
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Main content (video and timeline)
-            VStack {
-                if editManager.isLoading {
-                    ProgressView("Loading media...")
-                } else {
-                    // Video Player
-                    VideoPlayer(player: editManager.player)
-                        .aspectRatio(16/9, contentMode: .fit)
-                        .onAppear { editManager.player?.play() }
-                        .onDisappear { editManager.player?.pause() }
-                    
-                    // Enhanced Timeline
-                    EnhancedTimelineView(
-                        currentTime: editManager.currentTime,
-                        totalDuration: editManager.totalDuration,
-                        videoOffset: editManager.videoOffset,
-                        audioOffset: editManager.audioOffset
-                    )
-                    .frame(height: 120)
-                    .padding()
-                    
-                    // Volume Controls
-                    VolumeControlsView(
-                        videoVolume: Binding(
-                            get: { Double(editManager.videoVolume) },
-                            set: { editManager.updateVolume(value: Float($0), isVideo: true) }
-                        ),
-                        audioVolume: Binding(
-                            get: { Double(editManager.audioVolume) },
-                            set: { editManager.updateVolume(value: Float($0), isVideo: false) }
-                        )
-                    )
-                    .padding()
-                }
-            }
-            .frame(minWidth: 0, maxWidth: .infinity)
-            
-            // Side panel for specific mode
-            if showSpecificMode {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Main content (video and timeline)
                 VStack {
-                    Text("Fine-Tune Sync")
-                        .font(.headline)
-                        .padding(.top)
-                    
-                    EnhancedDelayControlsView(editManager: editManager)
+                    if editManager.isLoading {
+                        ProgressView("Loading media...")
+                    } else {
+                        // Video Player
+                        VideoPlayer(player: editManager.player)
+                            .aspectRatio(16/9, contentMode: .fit)
+                            .onAppear { editManager.player?.play() }
+                            .onDisappear { editManager.player?.pause() }
+                        
+                        // Enhanced Timeline
+                        EnhancedTimelineView(
+                            currentTime: editManager.currentTime,
+                            totalDuration: editManager.totalDuration,
+                            audioOffset: editManager.audioOffset
+                        )
+                        .frame(height: 120)
                         .padding()
-                    
+                        
+                        // Mode Switch Button
+                        Button(action: {
+                            withAnimation {
+                                showSpecificMode.toggle()
+                            }
+                        }) {
+                            Text(showSpecificMode ? "<-- Volume Mode" : "Specific Mode -->")
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                        }
+                        .padding(.bottom)
+                        
+                        // Controls Area
+                        ZStack {
+                            // Volume Controls
+                            VolumeControlsView(
+                                videoVolume: Binding(
+                                    get: { Double(editManager.videoVolume) },
+                                    set: { editManager.updateVolume(value: Float($0), isVideo: true) }
+                                ),
+                                audioVolume: Binding(
+                                    get: { Double(editManager.audioVolume) },
+                                    set: { editManager.updateVolume(value: Float($0), isVideo: false) }
+                                )
+                            )
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                            .opacity(showSpecificMode ? 0 : 1)
+                            
+                            // Specific Mode
+                            EnhancedDelayControlsView(editManager: editManager)
+                                .frame(width: geometry.size.width)
+                                .background(Color(.systemBackground))
+                                .opacity(showSpecificMode ? 1 : 0)
+                        }
+                    }
+                }
+                .frame(minWidth: 0, maxWidth: .infinity)
+            }
+            .overlay(
+                HStack {
                     Spacer()
+                    Button("Go Back") {
+                        Debug.log("Go Back button tapped in EditView")
+                        assetManager.clearAssets()
+                        path.removeLast()
+                    }
                 }
-                .frame(width: 300)
-                .background(Color(.systemBackground))
-                .overlay(
-                    Rectangle()
-                        .frame(width: 1)
-                        .foregroundColor(Color.gray.opacity(0.3)),
-                    alignment: .leading
-                )
-            }
-        }
-        .overlay(
-            HStack {
-                Button(action: { showSpecificMode.toggle() }) {
-                    Label(showSpecificMode ? "Hide Controls" : "Show Controls",
-                          systemImage: showSpecificMode ? "chevron.right.circle.fill" : "chevron.left.circle.fill")
+                .padding(),
+                alignment: .topTrailing
+            )
+            .onAppear {
+                Debug.log("EditView appeared")
+                Task {
+                    guard let videoURL = assetManager.videoAssetURL,
+                          let audioURL = assetManager.audioAssetURL else { return }
+                    await editManager.initialize(videoURL: videoURL, audioURL: audioURL)
                 }
-                .padding(8)
-                .background(Color(.systemBackground))
-                .cornerRadius(8)
-                
-                Spacer()
-                
-                Button("Go Back") {
-                    Debug.log("Go Back button tapped in EditView")
-                    assetManager.clearAssets()
-                    path.removeLast()
-                }
-            }
-            .padding(),
-            alignment: .topTrailing
-        )
-        .onAppear {
-            Debug.log("EditView appeared")
-            Task {
-                guard let videoURL = assetManager.videoAssetURL,
-                      let audioURL = assetManager.audioAssetURL else {
-                    return
-                }
-                await editManager.initialize(videoURL: videoURL, audioURL: audioURL)
             }
         }
     }
@@ -112,7 +106,6 @@ struct EditView: View {
 struct EnhancedTimelineView: View {
     let currentTime: Double
     let totalDuration: Double
-    let videoOffset: Double
     let audioOffset: Double
     
     var body: some View {
@@ -124,7 +117,7 @@ struct EnhancedTimelineView: View {
                     color: .purple,
                     currentTime: currentTime,
                     totalDuration: totalDuration,
-                    offset: videoOffset,
+                    offset: audioOffset,
                     width: geometry.size.width
                 )
                 
@@ -317,62 +310,54 @@ struct EnhancedDelayControlsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Video Sync")
-                    .font(.headline)
-                
-                DelayControl(
-                    label: "Fine",
-                    value: editManager.videoOffset,
-                    onIncrement: { editManager.adjustDelay(type: "1ms", increment: true, mediaType: "video") },
-                    onDecrement: { editManager.adjustDelay(type: "1ms", increment: false, mediaType: "video") }
-                )
-                
-                DelayControl(
-                    label: "Medium",
-                    value: editManager.videoOffset,
-                    onIncrement: { editManager.adjustDelay(type: "10ms", increment: true, mediaType: "video") },
-                    onDecrement: { editManager.adjustDelay(type: "10ms", increment: false, mediaType: "video") }
-                )
-                
-                DelayControl(
-                    label: "Coarse",
-                    value: editManager.videoOffset,
-                    onIncrement: { editManager.adjustDelay(type: "100ms", increment: true, mediaType: "video") },
-                    onDecrement: { editManager.adjustDelay(type: "100ms", increment: false, mediaType: "video") }
-                )
-            }
-            
-            Divider()
-            
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Audio Sync")
+                Text("Sync It!")
                     .font(.headline)
                 
                 DelayControl(
                     label: "Fine",
                     value: editManager.audioOffset,
-                    onIncrement: { editManager.adjustDelay(type: "1ms", increment: true, mediaType: "audio") },
-                    onDecrement: { editManager.adjustDelay(type: "1ms", increment: false, mediaType: "audio") }
+                    onIncrement: {
+                        editManager.adjustAudioOffset(by: 0.001) // 1ms increment
+                    },
+                    onDecrement: {
+                        editManager.adjustAudioOffset(by: -0.001) // 1ms decrement
+                    }
                 )
                 
                 DelayControl(
                     label: "Medium",
                     value: editManager.audioOffset,
-                    onIncrement: { editManager.adjustDelay(type: "10ms", increment: true, mediaType: "audio") },
-                    onDecrement: { editManager.adjustDelay(type: "10ms", increment: false, mediaType: "audio") }
+                    onIncrement: {
+                        editManager.adjustAudioOffset(by: 0.01) // 10ms increment
+                    },
+                    onDecrement: {
+                        editManager.adjustAudioOffset(by: -0.01) // 10ms decrement
+                    }
                 )
                 
                 DelayControl(
                     label: "Coarse",
                     value: editManager.audioOffset,
-                    onIncrement: { editManager.adjustDelay(type: "100ms", increment: true, mediaType: "audio") },
-                    onDecrement: { editManager.adjustDelay(type: "100ms", increment: false, mediaType: "audio") }
+                    onIncrement: {
+                        editManager.adjustAudioOffset(by: 0.1) // 100ms increment
+                    },
+                    onDecrement: {
+                        editManager.adjustAudioOffset(by: -0.1) // 100ms decrement
+                    }
                 )
+                
+                // Display current offset
+                Text("Current Offset: \(String(format: "%.3f", editManager.audioOffset))s")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
             }
         }
+        .padding()
     }
 }
 
+// Updated DelayControl view
 struct DelayControl: View {
     let label: String
     let value: Double
@@ -387,6 +372,7 @@ struct DelayControl: View {
             Button(action: onDecrement) {
                 Image(systemName: "minus.circle.fill")
                     .imageScale(.large)
+                    .foregroundColor(.blue)
             }
             
             Text(String(format: "%.3f", value))
@@ -396,52 +382,8 @@ struct DelayControl: View {
             Button(action: onIncrement) {
                 Image(systemName: "plus.circle.fill")
                     .imageScale(.large)
+                    .foregroundColor(.blue)
             }
         }
     }
 }
-
-//
-//struct WaveformView: View {
-//    let color: Color
-//    
-//    var body: some View {
-//        GeometryReader { geometry in
-//            Path { path in
-//                let width = geometry.size.width
-//                let height = geometry.size.height
-//                let midHeight = height / 2
-//                
-//                // Create a simple waveform pattern
-//                stride(from: 0, to: width, by: 3).forEach { x in
-//                    let amplitude = Double.random(in: 0.2...0.8)
-//                    let y = midHeight - (CGFloat(amplitude) * midHeight)
-//                    path.move(to: CGPoint(x: x, y: midHeight + y))
-//                    path.addLine(to: CGPoint(x: x, y: midHeight - y))
-//                }
-//            }
-//            .stroke(color.opacity(0.5), lineWidth: 2)
-//        }
-//    }
-//}
-//
-//struct TimeMarkers: View {
-//    let width: CGFloat
-//    let duration: Double
-//    
-//    var body: some View {
-//        HStack(spacing: 0) {
-//            ForEach(0...4, id: \.self) { i in
-//                Text(timeString(for: duration * Double(i) / 4))
-//                    .font(.caption2)
-//                    .frame(width: width / 4)
-//            }
-//        }
-//    }
-//    
-//    private func timeString(for seconds: Double) -> String {
-//        let minutes = Int(seconds) / 60
-//        let seconds = Int(seconds) % 60
-//        return String(format: "%d:%02d", minutes, seconds)
-//    }
-//}
